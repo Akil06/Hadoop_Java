@@ -1,0 +1,134 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package finalproject_5;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+// import org.apache.hadoop.mapreduce.filecache.DistributedCache;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+/**
+ *
+ * @author akil
+ */
+public class FinalProject_5 {
+
+    /**
+     * @param args the command line arguments
+     */
+    public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
+        // TODO code application logic here
+        Configuration conf1 = new Configuration();
+        Job job1 = Job.getInstance(conf1, "distinct chaning");
+        job1.setJarByClass(FinalProject_5.class);
+        job1.setMapperClass(DistinctMapper.class);
+        job1.setMapOutputKeyClass(Text.class);
+        job1.setMapOutputValueClass(DestinationDistPojo.class);
+     //   DistributedCache.addCacheFile(new Path("/final/cache/airports.csv").toUri(), job1.getConfiguration());
+        job1.setReducerClass(DistinctReducer.class);
+        job1.setOutputKeyClass(Text.class);
+        job1.setOutputValueClass(DestinationDistPojo.class);
+
+        FileInputFormat.addInputPath(job1, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job1, new Path(args[1]));
+
+        System.exit(job1.waitForCompletion(true) ? 0 : 1);
+
+    }
+
+    public static class DistinctMapper extends Mapper<Object, Text, Text, DestinationDistPojo> {
+
+        private Text source = new Text();
+        private DestinationDistPojo destinationPojo = new DestinationDistPojo();
+
+        @Override
+        protected void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            // super.map(key, value, context); //To change body of generated methods, choose Tools | Templates.
+
+            String input = new String(value.toString());
+            String[] token = input.split(",");
+            if (!token[0].trim().contains("Year")) {
+                source.set(token[16]);
+                destinationPojo.setDestination(token[17]);
+                destinationPojo.setDistance(Integer.parseInt(token[18]));
+
+                  System.out.println("source"+token[16]);
+                System.out.println("row"+token[7]+" "+token[8] + " "+ token[9] +" "+ token[10]+ " "+token[17]);
+                context.write(source, destinationPojo);
+            }
+        }
+    }
+
+    public static class DistinctReducer extends Reducer<Text, DestinationDistPojo, Text, DestinationDistPojo> {
+
+        private DestinationDistPojo result = new DestinationDistPojo();
+        private HashMap<String, Integer> destMap = new HashMap();
+
+     //   private LookupPojoParcer metadata;
+
+        String fileName;
+        String airportName;
+        String destinationAirportName;
+/*
+        protected void setup(Context context) throws IOException {
+            try {
+                Path[] localFiles = DistributedCache.getLocalCacheFiles(context.getConfiguration());
+                for (Path eachPath : localFiles) {
+                    fileName = eachPath.getName().toString().trim();
+                    if (fileName.equals("airports.csv")) {
+                        metadata = new LookupPojoParcer();
+                        metadata.initialize(eachPath);
+                        break;
+                    }
+                }
+                System.out.println("File : " + localFiles[0].toString());
+            } catch (NullPointerException e) {
+                System.out.println("Exception : " + e);
+            }
+
+            System.out.println("Cache : " + context.getConfiguration().get("mapred.cache.files"));
+        }*/
+        
+        @Override
+        protected void reduce(Text key, Iterable<DestinationDistPojo> values, Context context) throws IOException, InterruptedException {
+            // super.reduce(key, values, context); //To change body of generated methods, choose Tools | Templates.
+            Integer distance;
+            String destination;
+          //  airportName = metadata.getStationName(key.toString());
+            for (DestinationDistPojo d : values) {
+                distance = d.getDistance();
+                destination = d.getDestination();
+                destMap.put(destination, distance);
+                //result.setDestination(destination);
+                //result.setDistance(distance);
+                //System.out.println("source"+key);
+                //System.out.println("destination "+destination);
+                //context.write(key, result);
+            }
+
+            for (Map.Entry<String, Integer> entry : destMap.entrySet()) {
+                //destinationAirportName = metadata.getStationName(entry.getKey());
+              //  result.setDestination(destinationAirportName);
+               result.setDestination(entry.getKey());
+                result.setDistance(entry.getValue());
+                context.write(key, result);
+
+            }
+        }
+    }
+
+}
